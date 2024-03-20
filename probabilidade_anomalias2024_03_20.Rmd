@@ -358,10 +358,11 @@ probab <- function(datamatrix_df_anomalias, limiar, original_data) {
   for (j in 1:nrow(datamatrix_df_anomalias)) {
     print(j)
 
-    idx_cols <- grep("idx", names(datamatrix_df_anomalias), value = TRUE)
-    result <- as.numeric(datamatrix_df_anomalias[j, idx_cols][!is.na(datamatrix_df_anomalias[j, idx_cols])])
+    #idx_cols <- grep("idx", names(datamatrix_df_anomalias), value = TRUE)
+    #result <- as.numeric(datamatrix_df_anomalias[j, idx_cols][!is.na(datamatrix_df_anomalias[j, idx_cols])])
 
-    dados_anomalia <- original_data[result, datamatrix_df_anomalias[j, 'serie']]
+    #dados_anomalia <- original_data[result, datamatrix_df_anomalias[j, 'serie']]
+    dados_anomalia <- datamatrix_df_anomalias
     dados_anomalia <- dados_anomalia[!is.na(dados_anomalia)]
     dados_anomalia <- dados_anomalia[dados_anomalia != 0]
 
@@ -375,19 +376,22 @@ probab <- function(datamatrix_df_anomalias, limiar, original_data) {
         )
         probab_anomalias_bic_item <- dados_anomalia[fit_result$is_anomaly]
         lista_anomalias_unicas_detectadas_item <- unique(unlist(probab_anomalias_bic_item))
-        idx_list_item <- result
+        #idx_list_item <- result
 
         # Create labels for each sublist
         label <- paste("Result for row", j)
         results[[label]] <- result_item
         probab_anomalias_bic[[label]] <- probab_anomalias_bic_item
         lista_anomalias_unicas_detectadas[[label]] <- lista_anomalias_unicas_detectadas_item
-        idx_list[[label]] <- idx_list_item
+        #idx_list[[label]] <- idx_list_item
       }
     }
   }
 
-  return(list(results = results, probab_anomalias_bic = probab_anomalias_bic, lista_anomalias_unicas_detectadas = lista_anomalias_unicas_detectadas, idx_list = idx_list))
+  return(list(results = results, probab_anomalias_bic = probab_anomalias_bic, lista_anomalias_unicas_detectadas = lista_anomalias_unicas_detectadas
+              #, 
+              #idx_list = idx_list
+              ))
 }
 library(dplyr)
 library(fitdistrplus)
