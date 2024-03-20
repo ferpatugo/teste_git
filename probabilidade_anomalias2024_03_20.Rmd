@@ -43,14 +43,406 @@ df_final %>%  head()
 # Número de linhas do df resultado com as séries anômalas detectadas pelo K-means
 
 ```{r}
+nrow(df_final)
+```
+# Carregando o Dataset GECCO
 
+```{r}
+dados_gecco = load("gecco_sample.RData")
 ```
 
+# Vendo as variáveis do GECCO
+
+```{r}
+gecco_sample %>% head()
+```
+
+# Número de linhas do dataset GECCO
+
+```{r}
+nrow(gecco_sample)
+```
+
+# Entendendo a lógica para recuperar os valores da série anômala
+
+```{r}
+gecco_sample  %>% dplyr::select(tp) %>% slice(df_final$idx[1]: (df_final$idx[1] + df_final$seqlen[1]-1))
+```
+
+# Recuperando todos os valores das séries anômalas
+
+```{r}
+gecoo_sample_list = list()
+
+for (i in 1:nrow(df_final)) {
+
+gecoo_sample_list [[i]]  = gecco_sample  %>% dplyr::select(tp) %>% slice(df_final$idx[i]: (df_final$idx[i] + df_final$seqlen[i]-1 ))
+
+}
+```
+
+# Verificando os valores das séries anômalas
+
+```{r}
+gecoo_sample_list[[100]]
+```
+
+# Média do tamanho das séries anômalas
+
+```{r}
+tamanho_series = lapply(gecoo_sample_list, FUN=nrow)
+mean(unlist(tamanho_series))
+```
+# Resumo Estatístico
+
+```{r}
+gecco_sample %>% dplyr::select(tp) %>% summary()
+```
+
+# Função que detecta probabilidade de anomalias para distribuições contínuas
+
+```{r}
+load("har_examples.RData")
+#dados = har_examples$example15
+#dados = har_examples$example16
+dados = har_examples$example17
+#dados = har_examples$example18
+#dados = rexp(100)
+
+teste = list()
+dados_anomalia = list()
+#nomes_dist_aic = list()
+nomes_dist_bic = list()
+probab_anomalias_bic = list()
+distancias = matrix()
+lista_anomalias_unicas_detectadas = list()
+lista_dbscanresult = list()
+
+dbscan_dist_prob_ts = function(vetor_serie,
+                               tamanho_janela,
+                               eps = NULL,
+                               minPts,
+                               limiar) {
+  #list(missing(eps), eps)
+
+  data_ts_janela <- ts_data(vetor_serie, tamanho_janela)
+
+  datamatrix <-
+    matrix(data_ts_janela,
+           nrow = dim(data_ts_janela)[1],
+           ncol = tamanho_janela)
+
+  distancias = kNNdist(data_ts_janela, k = minPts, all = TRUE)
+
+  Binseg_cp <- cpt.meanvar(cumsum(distancias), method = "BinSeg")
+
+  for (i in 1:length(Binseg_cp@cpts))  {
+    dbscanResult <-
+      dbscan::dbscan(datamatrix, eps = distancias[Binseg_cp@cpts[i]], minPts = minPts) # clustering
+
+    datamatrix_df = data.frame(datamatrix)
+
+    if (any(dbscanResult$cluster == 0)) {
+      datamatrix_df$clusters =  dbscanResult$cluster
+
+      datamatrix_df_anomalias = datamatrix_df %>% filter(clusters == 0)
+
+      datamatrix_df_anomalias = subset(datamatrix_df_anomalias, select = -c(clusters))
+
+
+      cat(
+        "Binseg change point for diff",
+        i,
+        "at location",
+        Binseg_cp@cpts[i],
+        "with value",
+        distancias[Binseg_cp@cpts[i]],
+        "\n"
+      )
+
+      lista_dbscanresult[[i]] = dbscanResult
+
+      #x11()
+
+      grafico_knn = dbscan::kNNdistplot(datamatrix, k =  minPts)
+      abline(h = distancias[Binseg_cp@cpts[i]], lty = 2)
+
+      #x11()
+
+      grafico_boxplot = boxplot(data.frame(t(datamatrix_df_anomalias)), plot = "TRUE")
+
+      #x11()
+
+      grafico_dbscan = dbscan::hullplot(datamatrix, dbscanResult, main = "DBSCAN")
+
+      for (i in 1:dim(datamatrix_df_anomalias)[1]) {
+        if (all(datamatrix_df_anomalias[i,] > 0)) {
+          fit_x1 = fitdistrplus::fitdist(as.numeric(datamatrix_df_anomalias[i,]), "lnorm")
+          fit_x2 = fitdistrplus::fitdist(as.numeric(datamatrix_df_anomalias[i,]), "exp")
+          fit_x3 = fitdistrplus::fitdist(as.numeric(datamatrix_df_anomalias[i,]), "gamma")
+          fit_x4 = fitdistrplus::fitdist(as.numeric(datamatrix_df_anomalias[i,]), "unif")
+          fit_x5 = fitdistrplus::fitdist(as.numeric(datamatrix_df_anomalias[i,]), "logis")
+          fit_x6 = fitdistrplus::fitdist(as.numeric(datamatrix_df_anomalias[i,]), "norm")
+
+          teste[[i]] = gofstat(
+            list(fit_x1, fit_x2, fit_x3, fit_x4, fit_x5, fit_x6),
+            fitnames = c(
+              "lognormal",
+              "Exponencial",
+              "Gamma",
+              "Uniforme",
+              "logística",
+              "Normal"
+            )
+          )
+          nomes_dist_bic[[i]] = names(which.min(teste[[i]]$bic))
+          #nomes_dist_bic[[i]] = names(which.min(teste[[i]]$aic))
+          #cat(
+          #  "Pela métrica AIC, A distribuicao melhor se ajustou a distribuicao:",
+          #  nomes_dist_aic[[i]],
+          #  "\n"
+          #)
+          #cat(
+          #  "---------------------------------------------------------------------------------------"
+          #)
+          cat(
+            "Pela métrica BIC, A distribuicao melhor se ajustou a distribuicao:",
+            nomes_dist_bic[[i]],
+            "\n"
+          )
+
+        }
+
+        else {
+          fit_x4 = fitdistrplus::fitdist(as.numeric(datamatrix_df_anomalias[i,]), "unif")
+          fit_x5 = fitdistrplus::fitdist(as.numeric(datamatrix_df_anomalias[i,]), "logis")
+          fit_x6 = fitdistrplus::fitdist(as.numeric(datamatrix_df_anomalias[i,]), "norm")
+          teste[[i]] = gofstat(
+            list(fit_x4, fit_x5, fit_x6),
+            fitnames = c("Uniforme", "logística", "Normal")
+          )
+
+          #nomes_dist_aic[[i]] = names(which.min(teste[[i]]$aic))
+          nomes_dist_bic[[i]] = names(which.min(teste[[i]]$bic))
+          #cat(
+          #  "Pela métrica AIC, A distribuicao melhor se ajustou a distribuicao:",
+          #  nomes_dist_aic[[i]],
+          #  "\n"
+          #)
+          #cat(
+          #  "---------------------------------------------------------------------------------------"
+          #)
+          cat(
+            "Pela métrica BIC, A distribuicao melhor se ajustou a distribuicao:",
+            nomes_dist_bic[[i]],
+            "\n"
+          )
+        }
+
+        dados_anomalia[[i]] = as.numeric(datamatrix_df_anomalias[i,])
+
+        if (nomes_dist_bic[[i]] == "lognormal") {
+          probab_anomalias_bic[[i]] =  dados_anomalia[[i]] [(
+            dlnorm(
+              dados_anomalia[[i]],
+              meanlog = fit_x1$estimate[[1]],
+              sdlog = fit_x1$estimate[[2]]
+            ) < limiar
+          ) == "TRUE"]
+        }
+        if (nomes_dist_bic[[i]] == "exp") {
+          probab_anomalias_bic[[i]] =  dados_anomalia[[i]] [(dexp(dados_anomalia[[i]],
+                                                                  rate = fit_x2$estimate[[1]]) < limiar) ==
+                                                              "TRUE"]
+        }
+        if (nomes_dist_bic[[i]] == "gamma") {
+          probab_anomalias_bic[[i]] =  dados_anomalia[[i]] [(
+            dgamma(
+              dados_anomalia[[i]],
+              shape = fit_x3$estimate[[1]],
+              rate = fit_x3$estimate[[2]]
+            ) < limiar
+          ) == "TRUE"]
+        }
+
+        if (nomes_dist_bic[[i]] == "unif") {
+          probab_anomalias_bic[[i]] =  dados_anomalia[[i]] [(
+            dunif(
+              dados_anomalia[[i]],
+              min = fit_x4$estimate[[1]],
+              max = fit_x4$estimate[[2]]
+            ) < limiar
+          ) == "TRUE"]
+        }
+
+        if (nomes_dist_bic[[i]] == "logística") {
+          probab_anomalias_bic[[i]] =  dados_anomalia[[i]] [(
+            dlogis(
+              dados_anomalia[[i]],
+              location = fit_x5$estimate[[1]],
+              scale = fit_x5$estimate[[2]]
+            ) < limiar
+          ) == "TRUE"]
+
+        } else {
+          probab_anomalias_bic[[i]] =  dados_anomalia[[i]] [(
+            dnorm(
+              dados_anomalia[[i]],
+              mean = fit_x6$estimate[[1]],
+              sd = fit_x6$estimate[[2]]
+            ) < limiar
+          ) == "TRUE"]
+
+        }
 
 
 
 
+        #cat(
+        #  "Pelo método da distribuição, essa janela foi considerada anomalia :",
+        #  as.numeric(datamatrix_df_anomalias[i, ]),
+        #  "\n"
+        #)
+        #cat(
+        #  "---------------------------------------------------------------------------------------",
+        #  "\n"
+        #)
 
+      }
+
+      lista_anomalias_unicas_detectadas[[i]] = unique(unlist(probab_anomalias_bic))
+
+    } else {
+      cat("Não foram detectadas anomalias")
+    }
+  }
+
+
+
+  #grafico_knn = dbscan::kNNdistplot(datamatrix, k =  minPts)
+
+  # Print the location and value of each change point using the AMOC method
+
+  assign("datamatrix_df_anomalias", datamatrix_df_anomalias, envir = .GlobalEnv)
+  assign("probab_anomalias_bic_por_janela",probab_anomalias_bic,envir = .GlobalEnv)
+  assign("nomes_dist_bic", nomes_dist_bic, envir = .GlobalEnv)
+  assign("dados_anomalia", dados_anomalia, envir = .GlobalEnv)
+  assign("grafico_knn", grafico_knn, envir = .GlobalEnv)
+  assign("grafico_dbscan", grafico_dbscan, envir = .GlobalEnv)
+  assign("grafico_boxplot", grafico_boxplot, envir = .GlobalEnv)
+  assign("lista_dbscanresult", lista_dbscanresult, envir = .GlobalEnv)
+  assign("lista_anomalias_unicas_detectadas",lista_anomalias_unicas_detectadas,envir = .GlobalEnv)
+
+  return(
+    list(
+      #datamatrix_df_anomalias,
+      lista_anomalias_unicas_detectadas,
+      lista_anomalias_unicas_detectadas,
+      nomes_dist_bic,
+      dados_anomalia,
+      lista_dbscanresult
+    )
+  )
+}
+
+
+dbscan_dist_prob_ts(dados$serie,tamanho_janela=8, minPts=3,limiar = 0.20)
+```
+
+## Função probabilidade de anomalias otimizada
+
+```{r}
+probab <- function(datamatrix_df_anomalias, limiar, original_data) {
+  results <- list()
+
+  for (j in 1:nrow(datamatrix_df_anomalias)) {
+    print(j)
+
+    idx_cols <- grep("idx", names(datamatrix_df_anomalias), value = TRUE)
+    result <- as.numeric(datamatrix_df_anomalias[j, idx_cols][!is.na(datamatrix_df_anomalias[j, idx_cols])])
+
+    dados_anomalia <- original_data[result, datamatrix_df_anomalias[j, 'serie']]
+    dados_anomalia <- dados_anomalia[!is.na(dados_anomalia)]
+    dados_anomalia <- dados_anomalia[dados_anomalia != 0]
+
+    if (length(dados_anomalia) > 1) {
+      fit_result <- fit_and_test_distribution(dados_anomalia, limiar)
+
+      if (any(fit_result$is_anomaly)) {
+        result_item <- list(
+          estatistica = fit_result$gof,
+          nomes_dist_bic = fit_result$best_fit
+        )
+        probab_anomalias_bic_item <- dados_anomalia[fit_result$is_anomaly]
+        lista_anomalias_unicas_detectadas_item <- unique(unlist(probab_anomalias_bic_item))
+        idx_list_item <- result
+
+        # Create labels for each sublist
+        label <- paste("Result for row", j)
+        results[[label]] <- result_item
+        probab_anomalias_bic[[label]] <- probab_anomalias_bic_item
+        lista_anomalias_unicas_detectadas[[label]] <- lista_anomalias_unicas_detectadas_item
+        idx_list[[label]] <- idx_list_item
+      }
+    }
+  }
+
+  return(list(results = results, probab_anomalias_bic = probab_anomalias_bic, lista_anomalias_unicas_detectadas = lista_anomalias_unicas_detectadas, idx_list = idx_list))
+}
+library(dplyr)
+library(fitdistrplus)
+
+fit_and_test_distribution <- function(data, limiar) {
+  print(data)
+
+  distribution_list <- c("gamma", "lnorm", "exp", "gamma", "unif", "logis", "norm")
+  fits <- list()
+
+  for (dist in distribution_list) {
+    tryCatch({
+      fits[[dist]] <- fitdist(data, dist)
+    }, error = function(e) {
+      cat("Error fitting distribution", dist, ": ", conditionMessage(e), "\n")
+    })
+  }
+
+  gof_stats <- lapply(fits, gofstat)
+  best_fit_idx <- which.min(sapply(gof_stats, function(x) x$bic))
+  best_fit <- names(best_fit_idx)
+
+  if (is.null(best_fit)) {
+    fits <- list(
+      best_fit = "Not Suitable",
+      gof = NULL,
+      is_anomaly = FALSE,
+      anomalias = numeric(0)
+    )
+    return(fits)
+  } else {
+    best_fit <- strsplit(best_fit, "-")[[1]][3]
+  }
+
+  params <- as.list(fits[[best_fit_idx]]$estimate)
+  is_anomaly <- switch(
+    best_fit,
+    lognormal = dlnorm(data, meanlog = params$meanlog, sdlog = params$sdlog) < limiar,
+    exp = dexp(data, rate = params$rate) < limiar,
+    gamma = dgamma(data, shape = params$shape, rate = params$rate) < limiar,
+    unif = dunif(data, min = params$min, max = params$max) < limiar,
+    logis = dlogis(data, location = params$location, scale = params$scale) < limiar,
+    dnorm(data, mean = params$mean, sd = params$sd) < limiar
+  )
+
+  anomalias <- data[is_anomaly]
+  return(list(best_fit = best_fit, best_fit_idx = best_fit_idx, gof = gof_stats, is_anomaly = is_anomaly, anomalias = anomalias))
+}
+```
+
+# Chamando a função
+
+```{r}
+resultado <- probab(gecoo_sample_list[[100]],0.2,gecco_sample)
+```
 
 
 
