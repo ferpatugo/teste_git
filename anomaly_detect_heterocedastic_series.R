@@ -158,7 +158,7 @@ fc_div2 <- function(lista, mode="var"){
 }
 
 
-div1 <- fc_div2(vec, "var")#normal com a variância (curvatura mínima)
-div2 <- fc_div2(cum.vec, "curtose")#acumulado com a rugosidade (curvatura máxima)
+div <- fc_div2(vec, "var")#normal com a variância (curvatura mínima)
+div <- fc_div2(cum.vec, "curtose")#acumulado com a rugosidade (curvatura máxima)
 
 
