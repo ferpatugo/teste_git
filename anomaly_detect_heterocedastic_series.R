@@ -2,6 +2,7 @@ library(hht)
 library(daltoolbox)
 library(harbinger)
 library(e1071)
+library(changepoint)
 
 #parâmetros do CEEMD
 noise.amp=0.001
@@ -11,14 +12,17 @@ obj <- harbinger()
 obj$noise.amp <- noise.amp
 obj$trials <- trials
 
+#htt data
+
 #serie volcano
 serie = sig
 #serie sin_data
 serie = sin_data$y
-#serie sin_data
-serie = tt
 
-
+#changepoint data
+serie = head(wave.c44137,20000)
+serie = head(HC1,10000)                       
+serie = ftse100  
 
 id <- 1:length(serie)
 
@@ -141,7 +145,7 @@ fc_div2 <- function(lista, mode="var"){
     ##calculando rugosidade pra cada imf
     vec <- vector()
     for (n in 1:length(lista)){
-      vec[n] <- fc(lista[[n]])
+      vec[n] <- fc_curtose(lista[[n]])
     }
     #Curvatura máxima
     res <- daltoolbox::transform(daltoolbox::fit_curvature_max(), vec)
@@ -154,7 +158,7 @@ fc_div2 <- function(lista, mode="var"){
 }
 
 
-div2 <- fc_div2(vec, "var")#normal com a variância (curvatura mínima)
+div1 <- fc_div2(vec, "var")#normal com a variância (curvatura mínima)
 div2 <- fc_div2(cum.vec, "curtose")#acumulado com a rugosidade (curvatura máxima)
 
 
