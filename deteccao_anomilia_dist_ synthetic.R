@@ -404,3 +404,61 @@ anomalias <- prob_dist(data, 0.05)
 time_series$predicted_event3_dist <- FALSE
 time_series[time_series$value==anomalias,'predicted_event3_dist'] <- TRUE
 generate_plot(time_series,'predicted_event3_dist','autoencoder com prob')
+
+
+# Outras bases de dados de anomalias
+data("har_examples")
+
+table(har_examples$example18$event)
+
+data = har_examples$example18
+
+# Example KMEANS:
+
+time_series <- kmeans_func(data, 10)
+
+generate_plot(time_series,'predicted_event','kmeans')
+
+# Example DBSCAN:
+
+time_series <- dbscan_func(data, 10,2)
+
+generate_plot(time_series,'predicted_event2','dbscan')
+
+# Example AUTOENCODER:
+
+time_series <- autoencoder_func(data, 10)
+
+generate_plot(time_series,'predicted_event3','autoencoder')
+
+# Example KMEANS:
+
+data <- time_series[time_series$predicted_event,'value']
+
+anomalias <- prob_dist(data, 0.2)
+
+time_series$predicted_event_dist <- FALSE
+time_series[time_series$value==anomalias,'predicted_event_dist'] <- TRUE
+generate_plot(time_series,'predicted_event_dist','kmeans com prob')
+
+# Example DBSCAN:
+
+data <- time_series[time_series$predicted_event2,'value']
+
+anomalias <- prob_dist(data, 0.05)
+
+time_series$predicted_event2_dist <- FALSE
+time_series[time_series$value==anomalias,'predicted_event2_dist'] <- TRUE
+generate_plot(time_series,'predicted_event2_dist','dbscan com prob')
+
+# Example AUTOENCODER:
+
+data <- time_series[time_series$predicted_event3,'value']
+
+anomalias <- prob_dist(data, 0.05)
+
+time_series$predicted_event3_dist <- FALSE
+time_series[time_series$value==anomalias,'predicted_event3_dist'] <- TRUE
+generate_plot(time_series,'predicted_event3_dist','autoencoder com prob')
+
+
